@@ -2,9 +2,10 @@ import streamlit as st
 import numpy as np
 import json
 import os
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Smart Fraud Detection", layout="centered")
+st.set_page_config(page_title="Fraud Detection", layout="centered")
+
+st.title("💳 Fraud Detection in Digital Payments Using Probabilistic Methods")
 
 DATA_FILE = "users.json"
 
@@ -24,14 +25,9 @@ def save_data(data):
 users = load_data()
 
 # -----------------------------
-# UI HEADER
-# -----------------------------
-st.markdown("## 💳 Fraud Detection System in Digital Payments Using Probabilistic Methods ")
-
-# -----------------------------
 # LOGIN
 # -----------------------------
-st.sidebar.header("👤 Login")
+st.sidebar.header("👤 User Login")
 username = st.sidebar.text_input("Enter Username")
 
 if username:
@@ -41,36 +37,15 @@ if username:
 
     history = users[username]["history"]
 
-    st.success(f"Welcome, {username}")
+    st.success(f"User: {username}")
 
-    # -----------------------------
-    # CARD UI
-    # -----------------------------
-    st.markdown("### 💳 Your Card")
-    st.markdown(f"""
-    <div style='padding:20px; border-radius:15px; background:#1e3a8a; color:white'>
-        <h4>Digital Payment Methods</h4>
-        <p>**** **** **** 1234</p>
-        <p>User: {username}</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # -----------------------------
-    # HISTORY GRAPH
-    # -----------------------------
-    st.subheader("📊 Spending Pattern")
+    st.subheader("📊 Previous Transactions")
+    st.write(history)
 
     states = ['L','M','H']
-    count = [history.count('L'), history.count('M'), history.count('H')]
-
-    fig, ax = plt.subplots()
-    ax.bar(states, count)
-    ax.set_title("Transaction Pattern")
-
-    st.pyplot(fig)
 
     # -----------------------------
-    # MARKOV MATRIX
+    # BUILD MARKOV MATRIX
     # -----------------------------
     matrix = np.zeros((3,3))
 
@@ -83,15 +58,18 @@ if username:
         if matrix[i].sum() != 0:
             matrix[i] /= matrix[i].sum()
 
+    st.write("Transition Matrix:")
+    st.write(matrix)
+
     # -----------------------------
     # NEW TRANSACTION
     # -----------------------------
     st.subheader("💰 New Transaction")
 
     prev_state = history[-1]
-    st.write(f"Previous: {prev_state}")
+    st.write(f"Previous Transaction: {prev_state}")
 
-    current_state = st.selectbox("Transaction Type", states)
+    current_state = st.selectbox("Current Transaction", states)
     amount = st.number_input("Amount", value=500)
     location = st.selectbox("Location", ["local", "foreign"])
     device = st.selectbox("Device", ["known", "new"])
@@ -115,36 +93,29 @@ if username:
         return P
 
     # -----------------------------
-    # FRAUD METER
-    # -----------------------------
-    def fraud_meter(score):
-        st.progress(min(int(score*1000), 100))
-        st.write(f"Fraud Score: {round(score*100,2)}%")
-
-    # -----------------------------
     # DETECT
     # -----------------------------
     if st.button("🔍 Detect Fraud"):
 
-        suspicious, prob = markov(prev_state, current_state)
+        suspicious, markov_prob = markov(prev_state, current_state)
         fraud_prob = bayes(amount, location, device, time)
+
+        # COMBINE BOTH
+        final_score = fraud_prob
+        if suspicious:
+            final_score += 0.05
 
         st.subheader("🧾 Result")
 
-        st.write(f"Markov Probability: {round(prob,3)}")
-
-        if suspicious:
-            st.warning("⚠️ Abnormal Pattern Detected")
-        else:
-            st.success("✅ Normal Pattern")
-
-        fraud_meter(fraud_prob)
+        st.write(f"Markov Probability: {round(markov_prob,3)}")
+        st.write(f"Fraud Probability: {round(fraud_prob*100,2)} %")
+        st.write(f"Final Risk Score: {round(final_score*100,2)} %")
 
         # -----------------------------
-        # OTP SIMULATION
+        # DECISION + OTP
         # -----------------------------
-        if fraud_prob > 0.05:
-            st.error("🚨 Fraud Suspected! OTP Verification Required")
+        if final_score > 0.05:
+            st.error("🚨 Fraud Detected! OTP Verification Required")
 
             otp = st.text_input("Enter OTP (use 1234)")
 
@@ -162,4 +133,4 @@ if username:
         save_data(users)
 
 else:
-    st.info("👈 Please login from sidebar")
+    st.info("👈 Please enter username to continue")
