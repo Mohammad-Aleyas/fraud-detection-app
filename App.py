@@ -26,7 +26,7 @@ users = load_data()
 # -----------------------------
 # UI HEADER
 # -----------------------------
-st.markdown("## 💳 Smart Fraud Detection System")
+st.markdown("## 💳 Fraud Detection System in Digital Payments Using Probabilistic Methods ")
 
 # -----------------------------
 # LOGIN
@@ -49,7 +49,7 @@ if username:
     st.markdown("### 💳 Your Card")
     st.markdown(f"""
     <div style='padding:20px; border-radius:15px; background:#1e3a8a; color:white'>
-        <h4>Bank Card</h4>
+        <h4>Digital Payment Methods</h4>
         <p>**** **** **** 1234</p>
         <p>User: {username}</p>
     </div>
