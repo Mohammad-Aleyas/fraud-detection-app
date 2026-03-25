@@ -2,32 +2,29 @@ import streamlit as st
 import numpy as np
 import json
 import os
-import matplotlib.pyplot as plt
+import random
+from datetime import datetime
 
 st.set_page_config(page_title="Fraud Detection", layout="centered")
 
 # -----------------------------
-# CUSTOM CSS (PREMIUM UI)
+# STYLE (GPay-like)
 # -----------------------------
 st.markdown("""
 <style>
-.card {
+.tx-card {
+    background:#1f2937;
     padding:15px;
     border-radius:12px;
+    margin-bottom:10px;
     color:white;
-    text-align:center;
-    font-weight:bold;
-    box-shadow: 2px 2px 12px rgba(0,0,0,0.3);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
 }
-.low {background: linear-gradient(135deg,#22c55e,#14532d);}
-.med {background: linear-gradient(135deg,#f59e0b,#78350f);}
-.high {background: linear-gradient(135deg,#ef4444,#7f1d1d);}
-.badge {
-    padding:10px;
-    border-radius:8px;
-    font-weight:bold;
-    text-align:center;
-}
+.success {color:#22c55e; font-weight:bold;}
+.failed {color:#ef4444; font-weight:bold;}
+.small {font-size:12px; color:#9ca3af;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,6 +45,25 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
+# -----------------------------
+# CREATE TRANSACTION
+# -----------------------------
+def create_tx(state):
+    if state == "L":
+        amount = random.randint(100,500)
+    elif state == "M":
+        amount = random.randint(600,5000)
+    else:
+        amount = random.randint(6000,20000)
+
+    return {
+        "type": state,
+        "amount": amount,
+        "time": datetime.now().strftime("%d %b %I:%M %p"),
+        "location": "local",
+        "status": "Success"
+    }
+
 users = load_data()
 
 # -----------------------------
@@ -59,48 +75,50 @@ if not username:
     st.stop()
 
 if username not in users:
-    users[username] = {"history": ["L","L","M","L"]}
+    users[username] = {
+        "history": [
+            create_tx("L"),
+            create_tx("L"),
+            create_tx("M"),
+            create_tx("L")
+        ]
+    }
     save_data(users)
 
 history = users[username]["history"]
+states = ['L','M','H']
 
 # -----------------------------
-# HISTORY DASHBOARD
+# HISTORY (GPay style)
 # -----------------------------
-st.markdown("## 📊 Transaction Dashboard")
+st.markdown("## 📱 Recent Payments")
 
-cols = st.columns(len(history))
+for tx in reversed(history[-6:]):
 
-for i, val in enumerate(history):
-    cls = "low" if val=="L" else "med" if val=="M" else "high"
-    cols[i].markdown(f"<div class='card {cls}'>{val}</div>", unsafe_allow_html=True)
+    status_class = "success" if tx["status"]=="Success" else "failed"
+    status_text = "✔ Paid" if tx["status"]=="Success" else "❌ Failed"
 
-low = history.count('L')
-med = history.count('M')
-high = history.count('H')
-
-c1, c2, c3 = st.columns(3)
-c1.metric("🟢 Low", low)
-c2.metric("🟡 Medium", med)
-c3.metric("🔴 High", high)
-
-# -----------------------------
-# CHART
-# -----------------------------
-fig, ax = plt.subplots()
-ax.bar(["Low","Medium","High"], [low,med,high])
-ax.set_title("Spending Pattern")
-st.pyplot(fig)
+    st.markdown(
+        f"""
+        <div class="tx-card">
+            <div>
+                <b>₹{tx["amount"]}</b><br>
+                <span class="small">{tx["time"]} • {tx["location"]}</span>
+            </div>
+            <div class="{status_class}">
+                {status_text}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # -----------------------------
 # NEW TRANSACTION
 # -----------------------------
-st.markdown("## 💰 New Transaction")
+st.markdown("## 💸 Make Payment")
 
-states = ['L','M','H']
-prev_state = history[-1]
-
-st.write(f"Previous: {prev_state}")
+prev_state = history[-1]["type"]
 
 current_state = st.selectbox("Transaction Type", states)
 amount = st.number_input("Amount", value=500)
@@ -111,13 +129,15 @@ time = st.selectbox("Time", ["day","night"])
 # -----------------------------
 # DETECT
 # -----------------------------
-if st.button("🚀 Analyze Transaction"):
+if st.button("Pay Now"):
 
     # MARKOV
+    states_only = [tx["type"] for tx in history]
+
     matrix = np.zeros((3,3))
-    for i in range(len(history)-1):
-        a = states.index(history[i])
-        b = states.index(history[i+1])
+    for i in range(len(states_only)-1):
+        a = states.index(states_only[i])
+        b = states.index(states_only[i+1])
         matrix[a][b] += 1
 
     for i in range(3):
@@ -130,7 +150,7 @@ if st.button("🚀 Analyze Transaction"):
 
     suspicious = markov_prob < 0.2
 
-    # SCORE SYSTEM (CLEAR)
+    # SCORE
     score = 0
     score += 30 if amount > 10000 else 10
     score += 25 if location=="foreign" else 10
@@ -139,38 +159,36 @@ if st.button("🚀 Analyze Transaction"):
     if suspicious:
         score += 20
 
-    st.markdown("## 🧾 Analysis Result")
+    st.markdown("## 🧾 Payment Status")
 
-    st.write(f"Markov Probability: {round(markov_prob*100,2)} %")
-    st.write(f"Fraud Score: {score} %")
-
-    # -----------------------------
-    # RISK BADGE
-    # -----------------------------
-    if score < 40:
-        st.markdown("<div class='badge' style='background:#22c55e;color:white'>LOW RISK</div>", unsafe_allow_html=True)
-    elif score < 60:
-        st.markdown("<div class='badge' style='background:#f59e0b;color:white'>MEDIUM RISK</div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<div class='badge' style='background:#ef4444;color:white'>HIGH RISK</div>", unsafe_allow_html=True)
-
-    # -----------------------------
-    # DECISION + OTP
-    # -----------------------------
     if score >= 60:
-        st.error("🚨 FRAUD DETECTED")
+        st.error("❌ Payment Failed (Fraud Detected)")
 
-        otp = st.text_input("Enter OTP (1234)")
+        otp = st.text_input("Enter OTP")
 
-        if otp == "1234":
-            st.success("✅ OTP VERIFIED - Transaction Allowed")
-        elif otp:
-            st.error("❌ Wrong OTP")
+        if otp:
+            if otp == "1234":
+                st.success("✔ OTP Verified → Payment Successful")
+                status = "Success"
+            else:
+                st.error("Incorrect OTP")
+                status = "Failed"
+        else:
+            status = "Failed"
 
     else:
-        st.success("✅ Transaction Approved")
+        st.success("✔ Payment Successful")
+        status = "Success"
 
-    # SAVE HISTORY
-    history.append(current_state)
+    # SAVE TRANSACTION
+    new_tx = {
+        "type": current_state,
+        "amount": amount,
+        "time": datetime.now().strftime("%d %b %I:%M %p"),
+        "location": location,
+        "status": status
+    }
+
+    history.append(new_tx)
     users[username]["history"] = history
     save_data(users)
